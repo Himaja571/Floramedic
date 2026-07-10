@@ -73,7 +73,7 @@ LeafDiseaseDetection/
 ### Clone the repository
 
 ```bash
-git clone https://github.com/Himaja.571/Floramedic-AI.git
+git clone https://github.com/Himaja.571/Floramedic.git
 ```
 
 ### Install dependencies
