@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FloraMedic - Plant Disease Predictor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .scanning-line {
+            animation: scan 2.5s ease-in-out infinite;
+        }
+        @keyframes scan {
+            0%, 100% { top: 0%; }
+            50% { top: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 font-sans min-h-screen">
+
+    <header class="bg-white border-b border-stone-200 py-4 px-6 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2">
+            <i data-lucide="leaf" class="text-emerald-600 w-6 h-6"></i>
+            <span class="text-xl font-bold tracking-tight text-stone-900">FloraMedic</span>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-stone-950 tracking-tight mb-3">Instant Plant Diagnostics</h1>
+            <p class="text-stone-600 max-w-md mx-auto">Upload a clear picture of an affected plant leaf to receive diagnostic information directly from watsonx.ai.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+            
+            <div class="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
+                <div id="drop-zone" class="border-2 border-dashed border-stone-300 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-500 transition-colors bg-stone-50 group">
+                    <input type="file" id="file-input" accept="image/*" class="hidden">
+                    <div id="upload-prompt">
+                        <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto text-stone-400 group-hover:text-emerald-600 transition-colors mb-3"></i>
+                        <p class="font-medium text-stone-700">Click to upload or drag image here</p>
+                        <p class="text-xs text-stone-400 mt-1">Supports PNG, JPG, JPEG</p>
+                    </div>
+                </div>
+
+                <div id="preview-wrapper" class="hidden relative rounded-xl overflow-hidden bg-black mt-2">
+                    <img id="image-preview" class="w-full h-64 object-cover opacity-80">
+                    <div id="scanner-bar" class="hidden absolute left-0 right-0 h-1 bg-emerald-400 shadow-[0_0_10px_#34d399] scanning-line"></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm min-h-[300px] flex flex-col justify-center">
+                <div id="placeholder-result" class="text-center py-12">
+                    <i data-lucide="activity" class="w-10 h-10 mx-auto text-stone-300 mb-2"></i>
+                    <p class="text-stone-500 text-sm">Upload a photo to see diagnosis report.</p>
+                </div>
+
+                <div id="loading-result" class="hidden text-center py-12">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+                    <p class="text-stone-600 font-medium">watsonx.ai is analyzing the cell structures...</p>
+                </div>
+
+                <div id="report-result" class="hidden space-y-5">
+                    <div class="flex justify-between items-start border-b border-stone-100 pb-3">
+                        <div>
+                            <h3 id="res-plant" class="text-2xl font-bold text-stone-950">Tomato Plant</h3>
+                            <p id="res-disease" class="text-amber-600 font-medium mt-0.5">Early Blight Fungus</p>
+                        </div>
+                        <span id="res-confidence" class="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">94% Confidence</span>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-semibold text-stone-900 mb-2 flex items-center gap-1.5">
+                            <i data-lucide="shield-alert" class="w-4 h-4 text-emerald-600"></i> Actionable Treatment Plan
+                        </h4>
+                        <ul id="res-treatment" class="space-y-1.5 text-sm text-stone-600 list-disc list-inside">
+                            </ul>
+                    </div>
+
+                    <button id="reset-btn" class="w-full mt-4 bg-stone-900 hover:bg-stone-800 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Scan Another Leaf
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const previewWrapper = document.getElementById('preview-wrapper');
+        const imagePreview = document.getElementById('image-preview');
+        const scannerBar = document.getElementById('scanner-bar');
+
+        const placeholderResult = document.getElementById('placeholder-result');
+        const loadingResult = document.getElementById('loading-result');
+        const reportResult = document.getElementById('report-result');
+        const resetBtn = document.getElementById('reset-btn');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-emerald-500'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emerald-500');
+            if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if(e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                dropZone.classList.add('hidden');
+                previewWrapper.classList.remove('hidden');
+                scannerBar.classList.remove('hidden');
+                
+                placeholderResult.classList.add('hidden');
+                loadingResult.classList.remove('hidden');
+                
+                sendToWatsonX(file);
+            }
+            reader.readAsDataURL(file);
+        }
+
+        async function sendToWatsonX(file) {
+            const formData = new FormData();
+            formData.append('leafImage', file);
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('res-plant').innerText = data.plantType || 'Unknown Plant';
+                    document.getElementById('res-disease').innerText = data.disease || 'Healthy';
+                    document.getElementById('res-confidence').innerText = `${data.confidence || '90%'} Confidence`;
+                    
+                    const treatmentList = document.getElementById('res-treatment');
+                    treatmentList.innerHTML = '';
+                    (data.treatment || ['No custom steps provided.']).forEach(step => {
+                        const li = document.createElement('li');
+                        li.innerText = step;
+                        treatmentList.appendChild(li);
+                    });
+
+                    loadingResult.classList.add('hidden');
+                    reportResult.classList.remove('hidden');
+                } else {
+                    alert(data.error || 'Something went wrong.');
+                    resetApp();
+                }
+            } catch (err) {
+                alert('Network connection error.');
+                resetApp();
+            } finally {
+                scannerBar.classList.add('hidden');
+            }
+        }
+
+        resetBtn.addEventListener('click', resetApp);
+
+        function resetApp() {
+            fileInput.value = '';
+            dropZone.classList.remove('hidden');
+            previewWrapper.classList.add('hidden');
+            scannerBar.classList.add('hidden');
+            reportResult.classList.add('hidden');
+            loadingResult.classList.add('hidden');
+            placeholderResult.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
